@@ -1,4 +1,3 @@
-
 import React, { useMemo } from 'react';
 import { BattleEntity } from '../../../types/combat.types';
 import { cartesianToSpherical, formatDistance, formatBearing } from './utils';
@@ -359,4 +358,4 @@ export const TacticalSphere: React.FC<TacticalSphereProps> = ({
   );
 };
 
-export default TacticalSphere;
+export default React.memo(TacticalSphere);

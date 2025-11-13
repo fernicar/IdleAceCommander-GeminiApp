@@ -1,4 +1,3 @@
-
 import React, { useMemo } from 'react';
 import { BattleEntity } from '../../../types/combat.types';
 import { calculateClosureRate, cartesianToSpherical, formatDistance, formatBearing } from './utils';
@@ -327,4 +326,4 @@ export const IFFIndicator: React.FC<IFFIndicatorProps> = ({
   );
 };
 
-export default IFFIndicator;
+export default React.memo(IFFIndicator);

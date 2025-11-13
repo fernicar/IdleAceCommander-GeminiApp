@@ -1,5 +1,4 @@
-
-import React from 'react';
+import React, { useMemo } from 'react';
 import { BattleEntity } from '../../../types/combat.types';
 import { cartesianToSpherical } from './utils';
 
@@ -21,7 +20,7 @@ export const RangeIndicators: React.FC<RangeIndicatorsProps> = ({
   className
 }) => {
   // Check if camera is within any threat zone
-  const inThreatZone = enemyJets.some(enemy => {
+  const inThreatZone = useMemo(() => enemyJets.some(enemy => {
     if (enemy.isDestroyed) return false;
     const spherical = cartesianToSpherical(
       enemy.position[0] - cameraPosition[0],
@@ -29,7 +28,7 @@ export const RangeIndicators: React.FC<RangeIndicatorsProps> = ({
       enemy.position[2] - cameraPosition[2]
     );
     return spherical.range <= threatRange;
-  });
+  }), [enemyJets, cameraPosition, threatRange]);
 
   return (
     <div className={className}>
@@ -326,4 +325,4 @@ export const RangeIndicators: React.FC<RangeIndicatorsProps> = ({
   );
 };
 
-export default RangeIndicators;
+export default React.memo(RangeIndicators);

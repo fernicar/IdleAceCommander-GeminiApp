@@ -1,3 +1,4 @@
+
 import * as React from "react";
 import { Slot } from "@radix-ui/react-slot";
 import { VariantProps, cva } from "class-variance-authority";
@@ -468,7 +469,8 @@ const SidebarMenuButton = React.forwardRef<
   return (
     <Tooltip>
       <TooltipTrigger asChild>{button}</TooltipTrigger>
-      <TooltipContent side="right" align="center" {...tooltipContentProps} />
+      {/* FIX: Removed invalid 'side' and 'align' props from TooltipContent. */}
+      <TooltipContent {...tooltipContentProps} />
     </Tooltip>
   );
 });

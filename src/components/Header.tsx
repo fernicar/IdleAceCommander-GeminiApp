@@ -58,7 +58,8 @@ const Header: React.FC<HeaderProps> = ({ onShowTutorial }) => {
                     <i className="fas fa-mug-hot text-xl text-military-tan"></i>
                   </a>
                 </TooltipTrigger>
-                <TooltipContent side="bottom" className="bg-military-dark border-secondary">
+                {/* FIX: Removed invalid 'side' prop from TooltipContent. */}
+                <TooltipContent className="bg-military-dark border-secondary">
                   <p className="text-military-tan font-military text-sm">Support Development ☕</p>
                 </TooltipContent>
               </Tooltip>

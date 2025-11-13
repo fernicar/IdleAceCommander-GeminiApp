@@ -1,6 +1,5 @@
-
 import React, { useState, useCallback, useMemo, useEffect } from 'react';
-import { BattleState } from '../../../types/combat.types';
+import { BattleEntity, BattleState } from '../../../types/combat.types';
 import { HUDOverlay, HUDLayer, HUDText } from './HUDOverlay';
 import { TacticalSphere } from './TacticalSphere';
 import { IFFIndicator } from './IFFIndicator';
@@ -16,6 +15,28 @@ interface HUDProps {
 }
 
 /**
+ * Custom hook to provide a throttled value.
+ * This helps in reducing the render frequency for expensive components.
+ * @param value The value to throttle.
+ * @param delay The throttle delay in milliseconds.
+ */
+const useThrottledState = <T,>(value: T, delay: number) => {
+    const [throttledValue, setThrottledValue] = React.useState(value);
+    const valueRef = React.useRef(value);
+    valueRef.current = value;
+
+    React.useEffect(() => {
+        const handle = setInterval(() => {
+            setThrottledValue(valueRef.current);
+        }, delay);
+
+        return () => clearInterval(handle);
+    }, [delay]);
+
+    return throttledValue;
+}
+
+/**
  * Main HUD Container Component
  * Orchestrates all HUD layers and manages HUD state
  */
@@ -28,6 +49,11 @@ export const HUD: React.FC<HUDProps> = ({
   const [hudIntensity, setHudIntensity] = useState<'day' | 'night' | 'off'>('day');
   const [displayMode, setDisplayMode] = useState<'full' | 'tactical' | 'minimal'>('full');
   const [primaryTargetId, setPrimaryTargetId] = useState<string | null>(null);
+  
+  // Throttled state for less performance-critical components
+  const throttledAlliedJets = useThrottledState(battleState.alliedJets, 200);
+  const throttledEnemyJets = useThrottledState(battleState.enemyJets, 200);
+
 
   // Load HUD settings from localStorage
   useEffect(() => {
@@ -97,7 +123,7 @@ export const HUD: React.FC<HUDProps> = ({
   const aliveAllied = battleState.alliedJets.filter(j => !j.isDestroyed).length;
   const aliveEnemy = battleState.enemyJets.filter(j => !j.isDestroyed).length;
 
-  // Get primary target entity
+  // Get primary target entity (from real-time state for responsiveness)
   const primaryTargetEntity = useMemo(() => {
     if (!primaryTargetId) return null;
     return [...battleState.alliedJets, ...battleState.enemyJets]
@@ -106,16 +132,16 @@ export const HUD: React.FC<HUDProps> = ({
 
   return (
     <HUDOverlay intensity={hudIntensity} className={className}>
-      {/* Layer 0: Range Indicators (Deepest Background) */}
+      {/* Layer 0: Range Indicators (Deepest Background) - Throttled */}
       <HUDLayer zIndex={9}>
         <RangeIndicators
           cameraPosition={cameraPosition}
-          enemyJets={battleState.enemyJets}
+          enemyJets={throttledEnemyJets}
           threatRange={15}
         />
       </HUDLayer>
 
-      {/* Layer 0.5: HMS Reticle */}
+      {/* Layer 0.5: HMS Reticle - Real-time */}
       <HUDLayer zIndex={10}>
         <HMSReticle
           cameraPosition={cameraPosition}
@@ -139,13 +165,13 @@ export const HUD: React.FC<HUDProps> = ({
         </div>
       </HUDLayer>
 
-      {/* Layer 2: Central Targeting Info & IFF System */}
+      {/* Layer 2: Central Targeting Info & IFF System - Throttled */}
       <HUDLayer zIndex={12}>
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2">
           {displayMode !== 'minimal' && (
             <IFFIndicator
-              alliedJets={battleState.alliedJets}
-              enemyJets={battleState.enemyJets}
+              alliedJets={throttledAlliedJets}
+              enemyJets={throttledEnemyJets}
               cameraPosition={cameraPosition}
               primaryTargetId={primaryTargetId}
               onTargetSelect={setPrimaryTargetId}
@@ -154,20 +180,20 @@ export const HUD: React.FC<HUDProps> = ({
         </div>
       </HUDLayer>
 
-      {/* Layer 3: Tactical Display (Right) */}
+      {/* Layer 3: Tactical Display (Right) - Throttled */}
       {displayMode !== 'minimal' && (
         <HUDLayer zIndex={13}>
           <div className="absolute top-20 right-8">
             <TacticalSphere
-              alliedJets={battleState.alliedJets}
-              enemyJets={battleState.enemyJets}
+              alliedJets={throttledAlliedJets}
+              enemyJets={throttledEnemyJets}
               cameraPosition={cameraPosition}
             />
           </div>
         </HUDLayer>
       )}
 
-      {/* Layer 4: Audio Cues & Alerts */}
+      {/* Layer 4: Audio Cues & Alerts - Real-time */}
       <HUDLayer zIndex={15}>
         <AudioCueManager
           battleState={battleState}
