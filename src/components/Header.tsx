@@ -9,6 +9,7 @@ import {
   TooltipTrigger,
 } from './ui/tooltip';
 import { Switch } from './ui/switch';
+import { cn } from '../lib/utils';
 
 interface HeaderProps {
   onShowTutorial?: () => void;
@@ -33,9 +34,16 @@ const Header: React.FC<HeaderProps> = ({ onShowTutorial }) => {
                 TACTICAL COMBAT OPERATIONS
               </p>
             </div>
-            <div className="flex items-center space-x-4 pl-4">
-              <div className="flex items-center space-x-2">
-                <label htmlFor="debug-mode" className="text-sm font-military text-red-400">DEBUG</label>
+            <div className="group flex items-center space-x-4 pl-4">
+              <div
+                className={cn(
+                  'flex items-center space-x-2 transition-opacity',
+                  !gameState.debugMode && 'opacity-0 group-hover:opacity-100'
+                )}
+              >
+                <label htmlFor="debug-mode" className="text-sm font-military text-red-400">
+                  DEBUG
+                </label>
                 <Switch
                   id="debug-mode"
                   checked={gameState.debugMode}
@@ -44,7 +52,9 @@ const Header: React.FC<HeaderProps> = ({ onShowTutorial }) => {
               </div>
               {gameState.debugMode && (
                 <div className="flex items-center space-x-2">
-                  <label htmlFor="respawn-mode" className="text-sm font-military text-yellow-400">RESPAWN</label>
+                  <label htmlFor="respawn-mode" className="text-sm font-military text-yellow-400">
+                    RESPAWN
+                  </label>
                   <Switch
                     id="respawn-mode"
                     checked={gameState.respawnEnabled}
