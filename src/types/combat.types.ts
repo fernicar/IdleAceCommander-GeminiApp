@@ -1,7 +1,3 @@
-// ============================================
-// IMPORTS
-// ============================================
-
 import * as THREE from 'three';
 
 // ============================================
@@ -120,6 +116,10 @@ export interface BattleEntity {
   burstState: BurstState;
   flareState: FlareDeploymentState;
   wreckageAngularVelocity: [number, number, number] | null;
+
+  // Cinematic Kill State
+  cinematicKillTargetId: string | null;
+  isTargetOfCinematicKill: boolean;
 
   // Legacy behavior state (for compatibility)
   behaviorState: 'idle' | 'pursuing' | 'attacking' | 'evading' | 'regrouping' | 'escaping';

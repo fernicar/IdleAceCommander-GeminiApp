@@ -93,6 +93,8 @@ export const useBattleSimulation = (
         wreckageAngularVelocity: null,
         behaviorState: 'idle',
         behaviorTimer: 0,
+        cinematicKillTargetId: null,
+        isTargetOfCinematicKill: false,
       };
     });
 
@@ -133,6 +135,8 @@ export const useBattleSimulation = (
         wreckageAngularVelocity: null,
         behaviorState: 'idle',
         behaviorTimer: 0,
+        cinematicKillTargetId: null,
+        isTargetOfCinematicKill: false,
       };
     });
 
@@ -190,37 +194,9 @@ export const useBattleSimulation = (
 
           // Mark entities as destroyed
           if (event.type === 'destroy') {
-            // INTENTION OF CHANGE (Code Removal):
-            // This direct state update is being removed. It is the "hollow" action that we are replacing.
-            // Instead of instantly marking the jet as destroyed, we will now check its status and,
-            // if it is still alive, we will force its scripted attacker to launch a guaranteed-kill missile.
-            /*
-            setBattleState((prev) => {
-              if (!prev) return null;
-
-              return {
-                ...prev,
-                alliedJets: prev.alliedJets.map((j) =>
-                  j.id === event.targetId ? { ...j, isDestroyed: true } : j
-                ),
-                enemyJets: prev.enemyJets.map((j) =>
-                  j.id === event.targetId ? { ...j, isDestroyed: true } : j
-                ),
-              };
-            });
-            */
-            
-            // INTENTION OF CHANGE (Code Addition):
-            // This is the new "plausible action" logic. When the event's deadline is reached,
-            // we check if the target is still flying. If it is, we find its designated attacker
-            // and force the launch of a missile with `willDetonate: true`. This missile will then
-            // be handled by the simulation's existing physics and detonation logic below.
             const attacker = allJets.find(j => j.id === event.attackerId && !j.isWrecked);
             const target = allJets.find(j => j.id === event.targetId && !j.isWrecked);
 
-            // Only launch a missile if the attacker and target are still in the fight.
-            // If the target is already wreckage (destroyed by a random shot), this condition will
-            // be false, and we will do nothing, thus honoring the "natural" kill.
             if (attacker && target) {
                 const attackerPos = convertToVector3(attacker.position);
                 const attackerQuat = convertToQuaternion(attacker.quaternion);
@@ -236,7 +212,7 @@ export const useBattleSimulation = (
                   quaternion: missileQuaternion,
                   life: MISSILE_LIFESPAN,
                   targetId: target.id,
-                  willDetonate: true, // This guarantees the destruction when it gets in range.
+                  willDetonate: true,
                 });
             }
           }
@@ -281,7 +257,6 @@ export const useBattleSimulation = (
         });
       }
 
-// Calculate allied barycenter for cohesion
       const alliedBarycenter = new THREE.Vector3();
       if (activeAlliedJets.length > 0) {
         activeAlliedJets.forEach(j => alliedBarycenter.add(convertToVector3(j.position)));
@@ -289,17 +264,43 @@ export const useBattleSimulation = (
       }
 
       // --- Green Team Target Swapping ---
-      // Green jets swap targets periodically
       const greenTargetSwapTimer = Math.floor(Date.now() / 1000) % GREEN_TARGET_SWAP_TIME;
       if (greenTargetSwapTimer === 0) {
         const greenJetsToSwap = allJets.filter(j => j.team === 'allied' && !j.isDestroyed && !j.isWrecked);
         if (greenJetsToSwap.length >= 2) {
-          // Simple target swapping - swap targets between first two green jets
           const tempTargetId = greenJetsToSwap[0].targetId;
           greenJetsToSwap[0].targetId = greenJetsToSwap[1].targetId;
           greenJetsToSwap[1].targetId = tempTargetId;
         }
       }
+
+      // --- Cinematic Kill Preparation ---
+      const CINEMATIC_WINDOW = 3000; // 3 seconds
+
+      // Reset cinematic states from previous frame
+      allJets.forEach(jet => {
+        jet.cinematicKillTargetId = null;
+        jet.isTargetOfCinematicKill = false;
+      });
+
+      // Set cinematic states for jets with upcoming scripted kills
+      allJets.forEach(jet => {
+        const upcomingEvent = battleState.scheduledEvents.find(e =>
+          e.attackerId === jet.id &&
+          e.type === 'destroy' &&
+          e.timestamp > elapsed &&
+          e.timestamp <= elapsed + CINEMATIC_WINDOW &&
+          !battleState.executedEvents.includes(e)
+        );
+
+        if (upcomingEvent) {
+          jet.cinematicKillTargetId = upcomingEvent.targetId;
+          const targetJet = allJets.find(j => j.id === upcomingEvent.targetId);
+          if (targetJet) {
+            targetJet.isTargetOfCinematicKill = true;
+          }
+        }
+      });
 
       // Update each jet with AI physics
       const updateJet = (jet: BattleEntity): BattleEntity => {
@@ -323,11 +324,7 @@ export const useBattleSimulation = (
               )
             );
             const quaternion = convertToQuaternion(jet.quaternion);
-            quaternion.multiply(deltaRotation).normalize();
-            
-            // FIX: The result of the quaternion multiplication was not being saved back to the jet object.
-            // This line is added to ensure the wreckage actually spins visually.
-            jet.quaternion = convertFromQuaternion(quaternion);
+            jet.quaternion = convertFromQuaternion(quaternion.multiply(deltaRotation).normalize());
           }
 
           // World boundaries for wreckage
@@ -347,11 +344,6 @@ export const useBattleSimulation = (
         // AI and Movement
         let target = allJets.find(j => j.id === jet.targetId && !j.isDestroyed && !j.isWrecked);
 
-        // INTENTION OF CHANGE (Code Addition):
-        // This is the "Plausible Action" AI targeting logic. Its purpose is to make a jet
-        // prioritize a target if the script dictates it will destroy that target soon.
-        // This makes the AI's actions look intentional and line up with the pre-calculated outcome.
-        // It only influences 'attacking' jets, preserving the 'following' wingman behavior.
         const imminentEventWindow = 5000; // Look ahead 5 seconds for a scripted event.
         const upcomingEvent = battleState.scheduledEvents.find(e => 
             e.attackerId === jet.id &&
@@ -361,7 +353,6 @@ export const useBattleSimulation = (
         );
 
         if (upcomingEvent && (jet.aiState === 'attacking' || jet.team === 'allied')) {
-            // A scripted kill is coming up for this jet. Force its target.
             jet.targetId = upcomingEvent.targetId;
             target = allJets.find(j => j.id === jet.targetId && !j.isDestroyed && !j.isWrecked);
         }
@@ -415,19 +406,23 @@ export const useBattleSimulation = (
         // Steering and physics
         let pointToLookAt: THREE.Vector3;
 
-        // INTENTION OF CHANGE (Code Addition):
-        // This `if/else` structure is added to implement the `isEscaping` behavior. The pre-calculated script
-        // can generate 'escape' events, and the BattleEntity type supports an `isEscaping` flag, but the
-        // original movement code had no logic to act on it. This ensures that a jet marked as 'isEscaping'
-        // will change its behavior to fly away from the battle.
-        // The original, high-quality logic for targeting, following, cohesion, and avoidance is preserved
-        // completely untouched inside the 'else' block.
-        if (jet.isEscaping) {
-            // If escaping, the jet's goal is to fly away from the center of the world.
+        if (jet.cinematicKillTargetId) {
+            // --- ATTACKER CINEMATIC MOVEMENT ---
+            const cinematicTarget = allJets.find(j => j.id === jet.cinematicKillTargetId);
+            if (cinematicTarget) {
+                const targetPos = convertToVector3(cinematicTarget.position);
+                const targetQuat = convertToQuaternion(cinematicTarget.quaternion);
+                const targetBackward = new THREE.Vector3(0, 0, -1).applyQuaternion(targetQuat);
+                
+                const tailingDistance = WEAPON_RANGE_THRESHOLD * 0.5;
+                pointToLookAt = targetPos.clone().add(targetBackward.multiplyScalar(tailingDistance));
+            } else {
+                pointToLookAt = convertToVector3(jet.position).clone().add(new THREE.Vector3(0, 0, 1).applyQuaternion(convertToQuaternion(jet.quaternion)));
+            }
+        } else if (jet.isEscaping) {
             pointToLookAt = convertToVector3(jet.position).normalize().multiplyScalar(WORLD_RADIUS * 2);
         } else {
             if (target) {
-              // Red team following behavior
               if (jet.team === 'enemy' && jet.aiState === 'following') {
                 const leader = allJets.find(j => j.id === jet.targetId);
                 if (leader) {
@@ -443,7 +438,6 @@ export const useBattleSimulation = (
                 pointToLookAt = convertToVector3(target.position);
               }
 
-              // Allied team cohesion and avoidance
               if (jet.team === 'allied' && activeAlliedJets.length > 1) {
                 const distToBarycenter = convertToVector3(jet.position).distanceTo(alliedBarycenter);
                 if (distToBarycenter > GREEN_COHESION_RADIUS) {
@@ -451,12 +445,9 @@ export const useBattleSimulation = (
                   pointToLookAt.lerp(alliedBarycenter, pullFactor * GREEN_COHESION_STRENGTH);
                 }
 
-                // Avoidance
                 for (const otherJet of activeAlliedJets) {
                   if (jet.id === otherJet.id) continue;
-
                   const distanceToOther = convertToVector3(jet.position).distanceTo(convertToVector3(otherJet.position));
-
                   if (distanceToOther < GREEN_AVOIDANCE_RADIUS) {
                     const repulsionVector = new THREE.Vector3().subVectors(convertToVector3(jet.position), convertToVector3(otherJet.position)).normalize();
                     const avoidanceStrength = Math.pow(1 - (distanceToOther / GREEN_AVOIDANCE_RADIUS), 2) * GREEN_AVOIDANCE_STRENGTH;
@@ -466,7 +457,6 @@ export const useBattleSimulation = (
                 }
               }
             } else {
-              // No target - fly forward
               const forward = new THREE.Vector3(0, 0, 1).applyQuaternion(convertToQuaternion(jet.quaternion));
               pointToLookAt = convertToVector3(jet.position).clone().add(forward.multiplyScalar(10));
             }
@@ -490,7 +480,9 @@ export const useBattleSimulation = (
         }
 
         targetQuaternion.setFromRotationMatrix(tempMatrix);
-        quaternion.slerp(targetQuaternion, delta * TURN_SPEED);
+        
+        const turnRate = jet.isTargetOfCinematicKill ? TURN_SPEED * 0.3 : TURN_SPEED;
+        quaternion.slerp(targetQuaternion, delta * turnRate);
 
         // Update velocity and position
         const forwardDir = new THREE.Vector3(0, 0, 1).applyQuaternion(quaternion);
@@ -505,10 +497,6 @@ export const useBattleSimulation = (
         }
 
         // --- FIRING LOGIC ---
-        // INTENTION OF CHANGE (Code Modification):
-        // The condition `jet.team === 'enemy'` is removed. This allows allied jets (`jet.team === 'allied'`)
-        // to use the same high-quality firing logic as the enemy jets. This is essential for a visually
-        // balanced and active dogfight where both sides are participating.
         if (jet.aiState === 'attacking' && target && (jet.team === 'allied'|| jet.team === 'enemy')) {
           const forwardDir = new THREE.Vector3(0, 0, 1).applyQuaternion(quaternion);
           const dirToTarget = convertToVector3(target.position).clone().sub(position).normalize();
@@ -527,12 +515,6 @@ export const useBattleSimulation = (
               const missileQuaternion = new THREE.Quaternion();
               missileQuaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), finalVelocity.clone().normalize());
               
-              // INTENTION OF CHANGE (Code Addition & Modification):
-              // This is the "Natural Kill Check". Instead of a random chance, a missile is only lethal (`willDetonate: true`)
-              // if its launch corresponds to a pre-calculated 'destroy' event in the script.
-              // If it is a scripted kill, we find that event and add it to `newExecutedEvents` to prevent a duplicate
-              // "forced missile" from being launched later by the deadline-checker.
-              // If it's not a scripted kill, `willDetonate` is `false`, making the missile purely a visual effect.
               const scriptedKillEvent = battleState.scheduledEvents.find(e =>
                 e.type === 'destroy' &&
                 e.attackerId === jet.id &&
@@ -552,7 +534,7 @@ export const useBattleSimulation = (
                 quaternion: missileQuaternion,
                 life: MISSILE_LIFESPAN,
                 targetId: jet.targetId,
-                willDetonate: !!scriptedKillEvent, // This missile is only lethal if it's a scripted event.
+                willDetonate: !!scriptedKillEvent,
               });
 
               // Trigger flares on target
@@ -621,10 +603,6 @@ export const useBattleSimulation = (
                   jet.burstState.tracersLeftInBurst = TRACERS_PER_BURST;
                   jet.burstState.nextShotTimer = TIME_BETWEEN_BURSTS;
                   
-                  // INTENTION OF CHANGE (Code Addition & Modification):
-                  // This is the same "Natural Kill Check" as above, but for tracer bursts.
-                  // A burst is only a "kill shot" if it corresponds to a scripted event.
-                  // This replaces the original random chance.
                   if (jet.burstState.burstsLeft === 1) {
                      const scriptedKillEvent = battleState.scheduledEvents.find(e =>
                         e.type === 'destroy' &&
@@ -653,9 +631,7 @@ export const useBattleSimulation = (
 
 // --- FLARE DEPLOYMENT ---
         if (jet.flareState.deploying) {
-          // FIX: Changed `nextShotTimer` to `nextFlareTimer` to match the type definition.
           jet.flareState.nextFlareTimer -= delta;
-          // FIX: Changed `nextShotTimer` to `nextFlareTimer` to match the type definition.
           if (jet.flareState.nextFlareTimer <= 0 && jet.flareState.flaresLeft > 0) {
             const right = new THREE.Vector3(1, 0, 0).applyQuaternion(quaternion);
             const back = new THREE.Vector3(0, 0, -1).applyQuaternion(quaternion);
@@ -725,31 +701,52 @@ export const useBattleSimulation = (
       // Update missiles
       const updatedMissiles = newMissiles.map(missile => {
         const missileState = {...missile};
-        const newVelocity = missileState.velocity.clone();
         const currentTarget = allJets.find(j => j.id === missileState.targetId && !j.isWrecked && !j.isDestroyed);
 
-        if (currentTarget) {
-          const targetForward = new THREE.Vector3(0, 0, 1).applyQuaternion(convertToQuaternion(currentTarget.quaternion));
-          const leadPoint = convertToVector3(currentTarget.position).clone().add(targetForward.multiplyScalar(LEAD_TARGET_DISTANCE));
+        if (missileState.id.startsWith('m_forced_') && currentTarget) {
+          // This is a "cheater" missile for scripted events. It moves directly towards the target.
+          const targetPosition = convertToVector3(currentTarget.position);
+          const newPosition = missileState.position.clone().lerp(targetPosition, 0.15); // Move 15% of the way to the target each frame.
+          const newVelocity = new THREE.Vector3().subVectors(targetPosition, missileState.position).normalize().multiplyScalar(MISSILE_SPEED * 2); // Make it look fast
 
-          const desiredDirection = leadPoint.sub(missileState.position).normalize();
-          const desiredVelocity = desiredDirection.multiplyScalar(MISSILE_SPEED);
+          const newQuaternion = new THREE.Quaternion();
+          newQuaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), newVelocity.clone().normalize());
 
-          newVelocity.lerp(desiredVelocity, delta * MISSILE_TURN_SPEED);
+          return {
+            ...missileState,
+            position: newPosition,
+            velocity: newVelocity, // Update velocity to keep smoke trail looking right
+            quaternion: newQuaternion,
+            life: missileState.life - delta,
+          };
+
+        } else {
+          // Standard missile physics
+          const newVelocity = missileState.velocity.clone();
+  
+          if (currentTarget) {
+            const targetForward = new THREE.Vector3(0, 0, 1).applyQuaternion(convertToQuaternion(currentTarget.quaternion));
+            const leadPoint = convertToVector3(currentTarget.position).clone().add(targetForward.multiplyScalar(LEAD_TARGET_DISTANCE));
+  
+            const desiredDirection = leadPoint.sub(missileState.position).normalize();
+            const desiredVelocity = desiredDirection.multiplyScalar(MISSILE_SPEED);
+  
+            newVelocity.lerp(desiredVelocity, delta * MISSILE_TURN_SPEED);
+          }
+  
+          newVelocity.normalize().multiplyScalar(MISSILE_SPEED);
+          const newPosition = missileState.position.clone().add(newVelocity.clone().multiplyScalar(delta));
+          const newQuaternion = new THREE.Quaternion();
+          newQuaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), newVelocity.clone().normalize());
+  
+          return {
+            ...missileState,
+            position: newPosition,
+            velocity: newVelocity,
+            quaternion: newQuaternion,
+            life: missileState.life - delta,
+          };
         }
-
-        newVelocity.normalize().multiplyScalar(MISSILE_SPEED);
-        const newPosition = missileState.position.clone().add(newVelocity.clone().multiplyScalar(delta));
-        const newQuaternion = new THREE.Quaternion();
-        newQuaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), newVelocity.clone().normalize());
-
-        return {
-          ...missileState,
-          position: newPosition,
-          velocity: newVelocity,
-          quaternion: newQuaternion,
-          life: missileState.life - delta,
-        };
       }).filter(missile => missile.life > 0);
 
       // Update flares

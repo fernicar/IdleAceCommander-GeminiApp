@@ -81,7 +81,8 @@ const generateBattleEvents = (
   
   // Create detailed lists of all combatants for simulation
   const alliedEntities: SimEntity[] = squadron.map((jet, i) => {
-    const pilot = pilots.find(p => p.id === jet.assignedPilotId) || { intelligence: 50, endurance: 50 };
+    // FIX: Safely access pilot properties and provide fallbacks.
+    const pilot = pilots.find(p => p.id === jet.assignedPilotId);
     return {
       id: `allied-${i}`,
       team: 'allied',
@@ -89,8 +90,8 @@ const generateBattleEvents = (
       weaponStrength: jet.computedStats.weaponStrength,
       speed: jet.computedStats.speed,
       agility: jet.computedStats.agility,
-      intelligence: pilot.intelligence,
-      pilotId: pilot.id,
+      intelligence: pilot?.intelligence || 50,
+      pilotId: pilot?.id,
     };
   });
   const enemyEntities: SimEntity[] = Array.from({ length: mission.enemyCount }, (_, i) => ({
