@@ -5,9 +5,11 @@ import * as THREE from 'three';
 // ============================================
 
 export interface BattleState {
-  status: 'preparing' | 'active' | 'victory' | 'defeat';
+  status: 'preparing' | 'active' | 'disengaging' | 'victory' | 'defeat';
   startTime: number;
   endTime: number | null;
+  disengageTime: number;
+  battleEndTime: number;
 
   // Combatants
   alliedJets: BattleEntity[];

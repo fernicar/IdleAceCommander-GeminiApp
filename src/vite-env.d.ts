@@ -1,17 +1,15 @@
-// FIX: Add a triple-slash directive to ensure React's global types are loaded before augmentation.
-/// <reference types="react" />
-
-// NOTE: The vite/client reference is now uncommented as it is standard for Vite.
-/// <reference types="vite/client" />
+// FIX: Replaced side-effect import with a namespace import for React to resolve namespace errors.
+// Also removed the vite/client reference as it was causing a type definition error.
+import * as React from 'react';
+import type { ThreeElements } from '@react-three/fiber';
 
 /**
- * Augment the global JSX namespace to include types for @react-three/fiber.
- * This allows using components like <mesh>, <ambientLight>, etc., in JSX without
- * TypeScript errors. This is defined in the global scope as a script-style
- * type definition file (no top-level imports/exports) to ensure it merges
- * with React's global JSX types.
+ * This file corrects project-wide type errors by properly augmenting the global JSX namespace.
+ * It merges React's intrinsic elements with those from @react-three/fiber, allowing
+ * both standard HTML/SVG elements and 3D components to be used in JSX without type errors.
  */
-namespace JSX {
-    // This extends the existing IntrinsicElements interface from React with the elements from @react-three/fiber
-    interface IntrinsicElements extends import('@react-three/fiber').ThreeElements {}
+declare global {
+  namespace JSX {
+    interface IntrinsicElements extends React.JSX.IntrinsicElements, ThreeElements {}
+  }
 }

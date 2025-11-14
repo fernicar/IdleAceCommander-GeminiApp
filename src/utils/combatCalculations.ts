@@ -43,7 +43,7 @@ export const calculateBattleOutcome = (
   const events = generateBattleEvents(squadron, pilots, mission, alliedWins);
 
   // 3. Calculate final results based on the *actual* events that occurred
-  const results = calculateResultsFromEvents(squadron, mission, events, alliedWins);
+  const results = calculateResultsFromEvents(squadron, mission, events);
 
   return { events, results };
 };
@@ -193,8 +193,7 @@ const generateBattleEvents = (
 const calculateResultsFromEvents = (
   squadron: FighterJet[],
   mission: Mission,
-  events: BattleEvent[],
-  alliedWins: boolean
+  events: BattleEvent[]
 ): BattleResults => {
   // Initialize pilot stats tracking object
   const pilotStatsMap: { [key: string]: { pilotId: string; kills: number; damage: number; survival: boolean } } = {};
@@ -209,33 +208,49 @@ const calculateResultsFromEvents = (
   // Process the events to get accurate stats
   for (const event of events) {
     if (event.type === 'hit' || event.type === 'destroy') {
-      const attackerStats = pilotStatsMap[event.attackerId];
-      if (attackerStats) {
-        attackerStats.damage += event.damage;
+      const attackerIsAllied = event.attackerId.startsWith('allied');
+      
+      if (attackerIsAllied) {
+        const attackerStats = pilotStatsMap[event.attackerId];
+        if (attackerStats) {
+          attackerStats.damage += event.damage || 0;
+        }
       }
 
       if (event.type === 'destroy') {
-        const targetStats = pilotStatsMap[event.targetId];
-        if (targetStats) { // Allied jet was destroyed
-          targetStats.survival = false;
+        const targetIsAllied = event.targetId.startsWith('allied');
+        if (targetIsAllied) {
+          const targetStats = pilotStatsMap[event.targetId];
+          if (targetStats) {
+            targetStats.survival = false;
+          }
           destroyedAlliedCount++;
-        } else { // Enemy jet was destroyed
+        } else {
           destroyedEnemyCount++;
-          if (attackerStats) {
-            attackerStats.kills++;
+          if (attackerIsAllied) {
+            const attackerStats = pilotStatsMap[event.attackerId];
+            if (attackerStats) {
+              attackerStats.kills++;
+            }
           }
         }
       }
     }
   }
 
+  // Redefine victory condition based on mission objectives (destroying most enemies),
+  // rather than the initial power-level check. This allows for Pyrrhic victories.
+  const missionObjectiveCompleted = mission.enemyCount > 0 && (destroyedEnemyCount / mission.enemyCount >= 0.75);
+
   const enemiesEscaped = events.filter((e) => e.type === 'escape').length;
   const survivingAllied = squadron.length - destroyedAlliedCount;
   const survivingEnemy = mission.enemyCount - destroyedEnemyCount - enemiesEscaped;
-  const rewardMultiplier = alliedWins ? 1.0 : 0.3;
+  
+  // Adjust rewards: Full for a clean win, partial for a Pyrrhic victory, minimal for a loss.
+  const rewardMultiplier = missionObjectiveCompleted ? (survivingAllied > 0 ? 1.0 : 0.5) : 0.3;
 
   return {
-    victory: alliedWins,
+    victory: missionObjectiveCompleted,
     survivingAllied,
     destroyedAllied: destroyedAlliedCount,
     survivingEnemy,
