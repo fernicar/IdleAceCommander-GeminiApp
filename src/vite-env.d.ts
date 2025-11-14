@@ -1,4 +1,7 @@
-/// <reference types="vite/client" />
+// The reference to vite/client was causing a "Cannot find type definition file" error,
+// which seems to prevent TypeScript from processing the rest of this file.
+// Removing it should allow the JSX namespace augmentation below to take effect.
+// /// <reference types="vite/client" />
 
 import * as React from 'react';
 import type { ThreeElements } from '@react-three/fiber';

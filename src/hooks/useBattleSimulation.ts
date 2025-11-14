@@ -551,16 +551,23 @@ export const useBattleSimulation = (
         const position = convertToVector3(jet.position);
         const quaternion = convertToQuaternion(jet.quaternion);
 
-        const directionToTarget = pointToLookAt.clone().sub(position).normalize();
-        const forward = new THREE.Vector3(0, 0, 1).applyQuaternion(quaternion);
-
-        const rotationAxis = forward.clone().cross(directionToTarget).normalize();
-
-        if (rotationAxis.lengthSq() > 0.001) {
-          const targetUp = directionToTarget.clone().cross(rotationAxis).normalize().negate();
-          tempMatrix.lookAt(pointToLookAt, position, targetUp);
-        } else {
+        if (battleState.status === 'disengaging') {
+          // During disengagement, force a level flight attitude by fixing the 'up' vector.
           tempMatrix.lookAt(pointToLookAt, position, new THREE.Vector3(0, 1, 0));
+        } else {
+          // Normal combat rotation that allows rolling.
+          const directionToTarget = pointToLookAt.clone().sub(position).normalize();
+          const forward = new THREE.Vector3(0, 0, 1).applyQuaternion(quaternion);
+  
+          const rotationAxis = forward.clone().cross(directionToTarget).normalize();
+  
+          if (rotationAxis.lengthSq() > 0.001) {
+            const targetUp = directionToTarget.clone().cross(rotationAxis).normalize().negate();
+            tempMatrix.lookAt(pointToLookAt, position, targetUp);
+          } else {
+            // Already facing target, maintain up vector
+            tempMatrix.lookAt(pointToLookAt, position, new THREE.Vector3(0, 1, 0));
+          }
         }
 
         targetQuaternion.setFromRotationMatrix(tempMatrix);
