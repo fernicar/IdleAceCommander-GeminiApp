@@ -10,7 +10,7 @@ interface State {
 }
 
 export class ErrorBoundary extends Component<Props, State> {
-  // FIX: Initialize state as a class property to resolve typing issues with 'this.state'.
+  // FIX: Initialize state as a class property to resolve typing issues with 'this.state', 'this.props', and 'this.setState'.
   state: State = { hasError: false, error: null };
 
   static getDerivedStateFromError(error: Error): State {

@@ -565,7 +565,27 @@ export const useBattleSimulation = (
 
         targetQuaternion.setFromRotationMatrix(tempMatrix);
         
-        const turnRate = jet.isTargetOfCinematicKill ? TURN_SPEED * 0.3 : TURN_SPEED;
+        let turnRate = TURN_SPEED;
+        
+        // If the jet is the victim of a cinematic kill, reduce its turn rate to simulate G-LOC.
+        if (jet.isTargetOfCinematicKill) {
+          turnRate = TURN_SPEED * 0.3;
+        } 
+        // Else if the jet is an attacker, check if we need to boost turn rate for a "hard steer".
+        else if (jet.cinematicKillTargetId) {
+            const upcomingEvent = battleState.scheduledEvents.find(e =>
+                e.attackerId === jet.id &&
+                e.targetId === jet.cinematicKillTargetId &&
+                e.type === 'destroy' &&
+                e.timestamp > elapsed
+            );
+
+            // Boost turn rate in the final second before the scripted missile launch.
+            if (upcomingEvent && (upcomingEvent.timestamp - elapsed <= 1000)) {
+                turnRate = TURN_SPEED * 3.0;
+            }
+        }
+        
         quaternion.slerp(targetQuaternion, delta * turnRate);
 
         // Update velocity and position
@@ -778,7 +798,7 @@ export const useBattleSimulation = (
         if (missileState.id.startsWith('m_forced_') && currentTarget) {
           // This is a "cheater" missile for scripted events. It moves directly towards the target.
           const targetPosition = convertToVector3(currentTarget.position);
-          const newPosition = missileState.position.clone().lerp(targetPosition, 0.15); // Move 15% of the way to the target each frame.
+          const newPosition = missileState.position.clone().lerp(targetPosition, 0.08); // SLOWED DOWN: Move 8% of the way to the target each frame.
           const newVelocity = new THREE.Vector3().subVectors(targetPosition, missileState.position).normalize().multiplyScalar(MISSILE_SPEED * 2); // Make it look fast
 
           const newQuaternion = new THREE.Quaternion();

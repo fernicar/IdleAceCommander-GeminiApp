@@ -1,5 +1,5 @@
-// FIX: Replaced side-effect import with a namespace import for React to resolve namespace errors.
-// Also removed the vite/client reference as it was causing a type definition error.
+/// <reference types="vite/client" />
+
 import * as React from 'react';
 import type { ThreeElements } from '@react-three/fiber';
 
@@ -10,6 +10,8 @@ import type { ThreeElements } from '@react-three/fiber';
  */
 declare global {
   namespace JSX {
+    // FIX: This file is being updated to correctly merge React's and @react-three/fiber's JSX element types.
+    // The previous implementation was not being picked up correctly, causing project-wide type errors.
     interface IntrinsicElements extends React.JSX.IntrinsicElements, ThreeElements {}
   }
 }
