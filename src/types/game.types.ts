@@ -1,6 +1,13 @@
+import { BattleEvent, BattleResults } from './combat.types';
+
 // ============================================
 // CORE GAME STATE TYPES
 // ============================================
+
+export interface PreCalculatedOutcome {
+  events: BattleEvent[];
+  results: BattleResults;
+}
 
 export interface GameState {
   // Meta
@@ -11,6 +18,9 @@ export interface GameState {
   // Current Activity
   currentView: 'idle' | 'combat' | 'general-briefing' | 'general-results';
   currentMission: Mission | null;
+  preCalculatedOutcome: PreCalculatedOutcome | null;
+  debugMode: boolean;
+  respawnEnabled: boolean;
 
   // Player Resources
   resources: {

@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { useGameState } from '../contexts/GameStateContext';
 import SettingsModal from './SettingsModal';
@@ -9,13 +8,14 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from './ui/tooltip';
+import { Switch } from './ui/switch';
 
 interface HeaderProps {
   onShowTutorial?: () => void;
 }
 
 const Header: React.FC<HeaderProps> = ({ onShowTutorial }) => {
-  const { gameState, saveGame } = useGameState();
+  const { gameState, saveGame, toggleDebugMode, toggleRespawn } = useGameState();
   const [showSettings, setShowSettings] = useState(false);
 
   return (
@@ -32,6 +32,26 @@ const Header: React.FC<HeaderProps> = ({ onShowTutorial }) => {
               <p className="text-xs text-gray-400 font-military">
                 TACTICAL COMBAT OPERATIONS
               </p>
+            </div>
+            <div className="flex items-center space-x-4 pl-4">
+              <div className="flex items-center space-x-2">
+                <label htmlFor="debug-mode" className="text-sm font-military text-red-400">DEBUG</label>
+                <Switch
+                  id="debug-mode"
+                  checked={gameState.debugMode}
+                  onCheckedChange={toggleDebugMode}
+                />
+              </div>
+              {gameState.debugMode && (
+                <div className="flex items-center space-x-2">
+                  <label htmlFor="respawn-mode" className="text-sm font-military text-yellow-400">RESPAWN</label>
+                  <Switch
+                    id="respawn-mode"
+                    checked={gameState.respawnEnabled}
+                    onCheckedChange={toggleRespawn}
+                  />
+                </div>
+              )}
             </div>
           </div>
 

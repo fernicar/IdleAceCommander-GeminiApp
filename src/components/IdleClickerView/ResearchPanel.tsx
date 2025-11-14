@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import { useGameState } from '../../contexts/GameStateContext';
 import { TechNode } from '../../types/game.types';
@@ -35,8 +34,7 @@ const ResearchPanel: React.FC = () => {
       const interval = setInterval(() => {
         const elapsed = Date.now() - (gameState.research.inProgress?.researchStartTime || 0);
         // In DEBUG mode, research completes in 2 seconds regardless of actual researchTime
-        const DEBUG = true; // Same DEBUG flag as used elsewhere
-        const total = DEBUG ? 2000 : (gameState.research.inProgress?.researchTime || 1);
+        const total = gameState.debugMode ? 2000 : (gameState.research.inProgress?.researchTime || 1);
         const percentage = Math.min(100, (elapsed / total) * 100);
         setProgress(percentage);
 
@@ -49,7 +47,7 @@ const ResearchPanel: React.FC = () => {
     } else {
       setProgress(0);
     }
-  }, [gameState.research.inProgress]);
+  }, [gameState.research.inProgress, gameState.debugMode, completeResearch]);
 
   const handleStartResearch = (node: TechNode) => {
     if (node.status !== 'available') return;
@@ -63,7 +61,8 @@ const ResearchPanel: React.FC = () => {
   const getRemainingTime = (): string => {
     if (!gameState.research.inProgress) return '0:00';
     const elapsed = Date.now() - (gameState.research.inProgress.researchStartTime || 0);
-    const remaining = Math.max(0, gameState.research.inProgress.researchTime - elapsed);
+    const total = gameState.debugMode ? 2000 : (gameState.research.inProgress.researchTime);
+    const remaining = Math.max(0, total - elapsed);
     const seconds = Math.floor(remaining / 1000);
     const minutes = Math.floor(seconds / 60);
     return `${minutes}:${(seconds % 60).toString().padStart(2, '0')}`;
@@ -167,7 +166,7 @@ const ResearchPanel: React.FC = () => {
                   }`}
                 >
                   <i className="fas fa-flask mr-2"></i>
-                  RESEARCH ({Math.floor(node.researchTime / 1000)}s)
+                  RESEARCH ({Math.floor((gameState.debugMode ? 2000 : node.researchTime) / 1000)}s)
                 </button>
               )}
 

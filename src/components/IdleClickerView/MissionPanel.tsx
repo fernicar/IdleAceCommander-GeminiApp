@@ -1,11 +1,24 @@
-
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useGameState } from '../../contexts/GameStateContext';
 import { useMissionTimer } from '../../hooks/useMissionTimer';
+import { calculateBattleOutcome } from '../../utils/combatCalculations';
+import { PreCalculatedOutcome } from '../../types/game.types';
 
 const MissionPanel: React.FC = () => {
-  const { setCurrentView, setCurrentMission } = useGameState();
+  const { gameState, setCurrentView, setCurrentMission, setPreCalculatedOutcome } = useGameState();
   const { timeRemaining, currentMission, clearMission, playerLevel } = useMissionTimer();
+  const [preCalculatedOutcome, setPreCalculatedOutcomeState] = useState<PreCalculatedOutcome | null>(null);
+
+  useEffect(() => {
+    if (gameState.debugMode && currentMission) {
+      // Tactic is not available here, defaulting to 'aggressive' for pre-calculation
+      const outcome = calculateBattleOutcome(gameState.squadron, gameState.pilots, currentMission, 'aggressive');
+      setPreCalculatedOutcomeState(outcome);
+    } else {
+      setPreCalculatedOutcomeState(null);
+    }
+  }, [currentMission, gameState.squadron, gameState.pilots, gameState.research.completed, gameState.debugMode]);
+
 
   const formatTime = (ms: number): string => {
     const totalSeconds = Math.floor(ms / 1000);
@@ -27,6 +40,7 @@ const MissionPanel: React.FC = () => {
   const handleLaunch = () => {
     if (currentMission) {
       setCurrentMission(currentMission);
+      setPreCalculatedOutcome(preCalculatedOutcome);
       setCurrentView('general-briefing');
       clearMission();
     }
@@ -110,13 +124,20 @@ const MissionPanel: React.FC = () => {
           </div>
 
           {/* Launch Button */}
-          <button
-            onClick={handleLaunch}
-            className="bg-military-green hover:bg-green-600 text-white font-bold py-4 rounded-lg border-2 border-green-400 transition-all transform hover:scale-105"
-          >
-            <i className="fas fa-rocket mr-2"></i>
-            LAUNCH MISSION
-          </button>
+          <div>
+            <button
+              onClick={handleLaunch}
+              className="w-full bg-military-green hover:bg-green-600 text-white font-bold py-4 rounded-lg border-2 border-green-400 transition-all transform hover:scale-105"
+            >
+              <i className="fas fa-rocket mr-2"></i>
+              LAUNCH MISSION
+            </button>
+            {gameState.debugMode && preCalculatedOutcome && currentMission && (
+              <div className="text-center text-xs text-red-400 font-military mt-2 bg-gray-900 p-1 rounded">
+                &#123;Allies {preCalculatedOutcome.results.destroyedAllied}/{gameState.squadron.length}, Enemies {preCalculatedOutcome.results.destroyedEnemy}/{currentMission.enemyCount}&#125;
+              </div>
+            )}
+          </div>
         </div>
       ) : (
         <div className="flex-1 flex flex-col items-center justify-center">

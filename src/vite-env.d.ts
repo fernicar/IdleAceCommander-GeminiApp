@@ -1,18 +1,21 @@
+// FIX: Add a triple-slash directive to ensure React's global types are loaded before augmentation.
+/// <reference types="react" />
 
-// FIX: Removed reference to vite/client as it was causing a "Cannot find type definition file" error.
+// NOTE: The vite/client reference is commented out as it was reported to cause errors.
 // /// <reference types="vite/client" />
 
-// FIX: Augmented the global JSX namespace with types from @react-three/fiber
-// to resolve TypeScript errors about unrecognized components like <mesh>, <ambientLight>, etc.
-import type { ThreeElements } from '@react-three/fiber';
-
+/**
+ * Augment the global JSX namespace to include types for @react-three/fiber.
+ * This allows using components like <mesh>, <ambientLight>, etc., in JSX without
+ * TypeScript errors. This is defined in the global scope as a script-style
+ * type definition file rather than a module to avoid potential module resolution
+ * issues with type augmentation.
+ */
 declare global {
   namespace JSX {
-    // FIX: Merged ThreeElements into the existing IntrinsicElements interface via declaration merging.
-    // The previous implementation created a circular reference.
-    interface IntrinsicElements extends ThreeElements {}
+    interface IntrinsicElements extends import('@react-three/fiber').ThreeElements {}
   }
 }
 
 // FIX: Add an empty export to make this file a module, which is required for global augmentation.
-export {};
+// This is now handled by making this a script-style declaration file (no imports/exports).

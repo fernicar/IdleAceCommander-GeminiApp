@@ -1,12 +1,11 @@
 import { useState, useEffect, useCallback } from 'react';
 import { BattleState, BattleEntity, BattleEvent } from '../types/combat.types';
-import { FighterJet, Pilot, Mission } from '../types/game.types';
+import { FighterJet, Pilot, Mission, PreCalculatedOutcome } from '../types/game.types';
 import { calculateBattleOutcome } from '../utils/combatCalculations';
 import * as THREE from 'three';
 
 // Simulation constants (adapted from PoC.tsx)
-const DEBUG = false;
-const RESPAWN_TIME = 5000; // ms
+const RESPAWN_TIME = 500005000; // ms
 const JET_SPEED = 35;
 const TURN_SPEED = 1.8;
 const WORLD_RADIUS = 120;
@@ -43,7 +42,10 @@ export const useBattleSimulation = (
   squadron: FighterJet[],
   pilots: Pilot[],
   mission: Mission | null,
-  tactic: 'aggressive' | 'defensive'
+  tactic: 'aggressive' | 'defensive',
+  debugMode: boolean,
+  respawnEnabled: boolean,
+  preCalculatedOutcome: PreCalculatedOutcome | null
 ) => {
   const [battleState, setBattleState] = useState<BattleState | null>(null);
 
@@ -51,7 +53,9 @@ export const useBattleSimulation = (
     if (!mission) return;
 
     // This is the "Director" creating the script. It pre-calculates the entire battle outcome.
-    const { events, results } = calculateBattleOutcome(squadron, pilots, mission, tactic);
+    const { events, results } = preCalculatedOutcome
+      ? preCalculatedOutcome
+      : calculateBattleOutcome(squadron, pilots, mission, tactic);
 
     // Create battle entities (the "Actors")
     const alliedJets: BattleEntity[] = squadron.map((jet, i) => {
@@ -146,7 +150,7 @@ export const useBattleSimulation = (
           flares: [],
       results, // The pre-determined final outcome
         });
-  }, [squadron, pilots, mission, tactic]);
+  }, [squadron, pilots, mission, tactic, preCalculatedOutcome]);
 
   // Main simulation loop
   useEffect(() => {
@@ -310,7 +314,7 @@ export const useBattleSimulation = (
 
           // Angular velocity for spinning
           if (jet.wreckageAngularVelocity) {
-            const angularVel = convertToVector3(jet.wreckageAngularVelocity);
+            const angularVel = new THREE.Vector3(...jet.wreckageAngularVelocity);
             const deltaRotation = new THREE.Quaternion().setFromEuler(
               new THREE.Euler(
                 angularVel.x * delta,
@@ -321,8 +325,7 @@ export const useBattleSimulation = (
             const quaternion = convertToQuaternion(jet.quaternion);
             quaternion.multiply(deltaRotation).normalize();
             
-            // INTENTION OF CHANGE (Code Addition):
-            // The result of the quaternion multiplication was not being saved back to the jet object.
+            // FIX: The result of the quaternion multiplication was not being saved back to the jet object.
             // This line is added to ensure the wreckage actually spins visually.
             jet.quaternion = convertFromQuaternion(quaternion);
           }
@@ -650,7 +653,9 @@ export const useBattleSimulation = (
 
 // --- FLARE DEPLOYMENT ---
         if (jet.flareState.deploying) {
+          // FIX: Changed `nextShotTimer` to `nextFlareTimer` to match the type definition.
           jet.flareState.nextFlareTimer -= delta;
+          // FIX: Changed `nextShotTimer` to `nextFlareTimer` to match the type definition.
           if (jet.flareState.nextFlareTimer <= 0 && jet.flareState.flaresLeft > 0) {
             const right = new THREE.Vector3(1, 0, 0).applyQuaternion(quaternion);
             const back = new THREE.Vector3(0, 0, -1).applyQuaternion(quaternion);
@@ -695,12 +700,8 @@ export const useBattleSimulation = (
       const updatedAllied = battleState.alliedJets.map(updateJet);
       const updatedEnemy = battleState.enemyJets.map(updateJet);
 
-      // Check if battle should end (only if not in DEBUG mode)
-      // INTENTION OF CHANGE (Code Modification):
-      // The hardcoded battle duration of `30000` is replaced with `battleState.results.duration`.
-      // This ensures the visual simulation's length perfectly matches the duration
-      // determined by the pre-calculated battle script from `calculateBattleOutcome`.
-      if (!DEBUG && elapsed >= (battleState.results.duration || 30000)) {
+      // Check if battle should end (only if not in debugMode)
+      if (!debugMode && elapsed >= (battleState.results.duration || 30000)) {
         setBattleState((prev) =>
           prev
             ? {
@@ -765,8 +766,8 @@ export const useBattleSimulation = (
         };
       }).filter(flare => flare.life > 0);
 
-      // Handle respawns in DEBUG mode
-      if (DEBUG) {
+      // Handle respawns
+      if (respawnEnabled) {
         const respawnJets = (jets: BattleEntity[]): BattleEntity[] => {
           return jets.map(jet => {
             if ((jet.isDestroyed || jet.isWrecked) && jet.destroyedAt && Date.now() - jet.destroyedAt > RESPAWN_TIME) {
@@ -812,26 +813,21 @@ export const useBattleSimulation = (
               }
             : null
         );
-        return;
+      } else {
+        setBattleState((prev) =>
+          prev
+            ? {
+                ...prev,
+                alliedJets: updatedAllied,
+                enemyJets: updatedEnemy,
+                executedEvents: [...prev.executedEvents, ...newExecutedEvents],
+                tracers: updatedTracers,
+                missiles: updatedMissiles,
+                flares: updatedFlares,
+              }
+            : null
+        );
       }
-
-      setBattleState((prev) =>
-        prev
-          ? {
-              ...prev,
-              alliedJets: updatedAllied,
-              enemyJets: updatedEnemy,
-              executedEvents: [...prev.executedEvents, ...newExecutedEvents],
-              // INTENTION OF CHANGE (Code Addition):
-              // The original code was missing these three lines in the final state update.
-              // Without them, no tracers, missiles, or flares would ever appear on screen
-              // in the non-DEBUG mode, as their arrays would be reset to empty on every frame.
-              tracers: updatedTracers,
-              missiles: updatedMissiles,
-              flares: updatedFlares,
-            }
-          : null
-      );
     }, 16); // ~60 FPS
 
     return () => clearInterval(interval);

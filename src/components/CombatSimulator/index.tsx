@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useGameState } from '../../contexts/GameStateContext';
 import { useNarrative } from '../../contexts/NarrativeContext';
@@ -33,7 +32,10 @@ const CombatSimulator: React.FC<CombatSimulatorProps> = ({ onMissionComplete }) 
     gameState.squadron,
     gameState.pilots,
     gameState.currentMission,
-    tactic
+    tactic,
+    gameState.debugMode,
+    gameState.respawnEnabled,
+    gameState.preCalculatedOutcome
   );
 
   // Initialize battle on mount
@@ -197,21 +199,17 @@ const CombatSimulator: React.FC<CombatSimulatorProps> = ({ onMissionComplete }) 
         cameraRotation={[0, 0, 0]}
       />
 
-      {/* DEBUG Exit Button */}
-      {(() => {
-        // Import DEBUG constant dynamically to check it
-        const DEBUG = true; // This should match the DEBUG constant in useBattleSimulation.ts
-        return DEBUG ? (
-          <div className="absolute top-4 right-4 z-50">
-            <button
-              onClick={forceEndBattle}
-              className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded border-2 border-red-400 font-bold shadow-lg"
-            >
-              EXIT DEBUG BATTLE
-            </button>
-          </div>
-        ) : null;
-      })()}
+      {/* Skip Button */}
+      {gameState.debugMode && (
+        <div className="absolute top-4 right-4 z-50">
+          <button
+            onClick={forceEndBattle}
+            className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded border-2 border-red-400 font-bold shadow-lg"
+          >
+            Skip
+          </button>
+        </div>
+      )}
 
       {/* Event Log */}
       <div className="absolute top-1/3 left-4 -translate-y-full -translate-y-4 bg-gray-800 bg-opacity-90 p-4 rounded border-2 border-military-green max-w-md pointer-events-none">

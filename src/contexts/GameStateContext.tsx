@@ -1,8 +1,8 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { GameState, FighterJet, Pilot, Mission, TechNode } from '../types/game.types';
+import { GameState, FighterJet, Pilot, Mission, TechNode, PreCalculatedOutcome } from '../types/game.types';
 
 // Debug mode for faster mission timers
-const DEBUG = true;
+const initialDebugMode = true;
 
 // ============================================
 // CONTEXT TYPE
@@ -14,6 +14,7 @@ interface GameStateContextType {
   updateHighScore: (points: number) => void;
   setCurrentView: (view: GameState['currentView']) => void;
   setCurrentMission: (mission: Mission | null) => void;
+  setPreCalculatedOutcome: (outcome: PreCalculatedOutcome | null) => void;
   updateSquadron: (squadron: FighterJet[]) => void;
   updatePilots: (pilots: Pilot[]) => void;
   startResearch: (tech: TechNode) => void;
@@ -22,6 +23,8 @@ interface GameStateContextType {
   upgradeJet: (jetId: string, upgradeType: 'weapons' | 'engines' | 'avionics') => void;
   trainPilot: (pilotId: string, stat: 'intelligence' | 'endurance', amount: number) => void;
   updateTTSSettings: (settings: Partial<GameState['settings']['tts']>) => void;
+  toggleDebugMode: () => void;
+  toggleRespawn: () => void;
   saveGame: () => void;
   resetGame: () => void;
 }
@@ -42,6 +45,9 @@ const createInitialState = (): GameState => ({
   lastSaveTime: Date.now(),
   currentView: 'idle',
   currentMission: null,
+  preCalculatedOutcome: null,
+  debugMode: initialDebugMode,
+  respawnEnabled: false,
 
   resources: {
     credits: 1000,
@@ -137,7 +143,7 @@ const createInitialState = (): GameState => ({
     available: [],
     completed: [],
     lastCompletedTime: 0,
-    nextMissionTime: Date.now() + (DEBUG ? 2000 : 60000), // 2 seconds in DEBUG, 1 minute otherwise
+    nextMissionTime: Date.now() + (initialDebugMode ? 2000 : 60000), // 2 seconds in DEBUG, 1 minute otherwise
   },
 
   settings: {
@@ -235,6 +241,11 @@ export const GameStateProvider: React.FC<{ children: ReactNode }> = ({ children 
   const setCurrentMission = (mission: Mission | null) => {
     setGameState(prev => ({ ...prev, currentMission: mission }));
   };
+  
+  // Set pre-calculated results
+  const setPreCalculatedOutcome = (outcome: PreCalculatedOutcome | null) => {
+    setGameState(prev => ({ ...prev, preCalculatedOutcome: outcome }));
+  };
 
   // Update squadron
   const updateSquadron = (squadron: FighterJet[]) => {
@@ -288,7 +299,7 @@ export const GameStateProvider: React.FC<{ children: ReactNode }> = ({ children 
         ...prev.missions,
         completed: [...prev.missions.completed, mission],
         lastCompletedTime: Date.now(),
-        nextMissionTime: Date.now() + (DEBUG ? 2000 : 60000), // Next mission available in 2 seconds (DEBUG) or 1 minute
+        nextMissionTime: Date.now() + (prev.debugMode ? 2000 : 60000), // Next mission available in 2 seconds (DEBUG) or 1 minute
       },
     }));
   };
@@ -369,6 +380,24 @@ export const GameStateProvider: React.FC<{ children: ReactNode }> = ({ children 
       },
     }));
   };
+  
+  // Toggle debug mode
+  const toggleDebugMode = () => {
+    setGameState(prev => {
+      const newDebugMode = !prev.debugMode;
+      return {
+        ...prev,
+        debugMode: newDebugMode,
+        // If we are turning debug mode off, also turn off respawn.
+        respawnEnabled: newDebugMode ? prev.respawnEnabled : false,
+      };
+    });
+  };
+
+  // Toggle respawn
+  const toggleRespawn = () => {
+    setGameState(prev => ({ ...prev, respawnEnabled: !prev.respawnEnabled }));
+  };
 
   // Reset game
   const resetGame = () => {
@@ -382,6 +411,7 @@ export const GameStateProvider: React.FC<{ children: ReactNode }> = ({ children 
     updateHighScore,
     setCurrentView,
     setCurrentMission,
+    setPreCalculatedOutcome,
     updateSquadron,
     updatePilots,
     startResearch,
@@ -390,6 +420,8 @@ export const GameStateProvider: React.FC<{ children: ReactNode }> = ({ children 
     upgradeJet,
     trainPilot,
     updateTTSSettings,
+    toggleDebugMode,
+    toggleRespawn,
     saveGame,
     resetGame,
   };
